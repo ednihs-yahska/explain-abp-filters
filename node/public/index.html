@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RSS Fetcher</title>
+  <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+  <script src="http://localhost:35729/livereload.js"></script>
+</head>
+<body>
+  <h1>RSS Feed Fetcher</h1>
+  <form id="rss-form" hx-get="/rss" hx-target="#feed" hx-swap="innerHTML">
+    <label for="title">Title:</label>
+    <input type="text" id="title" name="title" placeholder="Enter title" value="RM-11 #A" required style="width: 300px; display: block; margin-bottom: 0.5em;" />
+    <input type="url" name="url" placeholder="Enter RSS feed URL" value="https://gitlab.com/eyeo/anti-cv/abp-filters-anti-cv/-/commits/master?format=atom" required style="width: 300px;" />
+    <button type="submit">Fetch</button>
+  </form>
+  <div id="feed">
+    <!-- Fetched feed will be rendered here -->
+  </div>
+  <script>
+    document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+      // Only handle responses swapping into the #feed element
+      if (evt.detail.target.id !== 'feed') return;
+      let data;
+      try {
+        data = JSON.parse(evt.detail.xhr.responseText);
+      } catch (e) {
+        return;
+      }
+      const container = document.getElementById('feed');
+      container.innerHTML = '';
+      data.items.forEach(item => {
+        // Format the publication date
+        const date = new Date(item.pubDate);
+        const options = { day: '2-digit', month: 'long', year: 'numeric' };
+        const formattedDate = date.toLocaleDateString('en-US', options);
+        const diffTime = Date.now() - date.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const daysAgo = diffDays + ' day' + (diffDays !== 1 ? 's' : '') + ' ago';
+        // Build and append the pretty HTML
+        const entry = document.createElement('div');
+        entry.innerHTML = `
+          <h3><a href="${item.link}" target="_blank">${item.title}</a></h3>
+          <p><em>${formattedDate} (${daysAgo})</em></p>
+          <p>${item.contentSnippet || ''}</p>
+          <div>${item.content || ''}</div>
+        `;
+        container.appendChild(entry);
+      });
+    });
+  </script>
+</body>
+</html>
