@@ -18,6 +18,18 @@
   <div id="feed">
     <!-- Fetched feed will be rendered here -->
   </div>
+  <hr />
+  <h2>GitLab Commit Diff</h2>
+  <label for="diff-url">Commit URL:</label>
+  <input type="url" id="diff-url" placeholder="Enter GitLab commit URL" style="width: 400px; display: block; margin-bottom: 0.5em;" />
+  <button id="load-diff">Load Diff</button>
+  <div id="diff-container" style="margin-top:1em;">
+    <!-- Diff results will appear here -->
+  </div>
+  <button id="send-anthropic" style="margin-top:1em;">Send to Anthropic</button>
+  <div id="anthropic-response" style="margin-top:1em; white-space: pre-wrap;">
+    <!-- Anthropic response will appear here -->
+  </div>
   <script>
     document.body.addEventListener('htmx:afterOnLoad', function(evt) {
       // Only handle responses swapping into the #feed element
@@ -50,5 +62,79 @@
       });
     });
   </script>
+  <script>
+    document.getElementById('load-diff').addEventListener('click', function() {
+      const url = document.getElementById('diff-url').value;
+      if (!url) {
+        alert('Please enter a GitLab commit URL');
+        return;
+      }
+      fetch('/diff?url=' + encodeURIComponent(url))
+        .then(res => res.json())
+        .then(data => {
+          const container = document.getElementById('diff-container');
+          container.innerHTML = '';
+          if (data.error) {
+            container.textContent = 'Error: ' + data.error;
+            return;
+          }
+          data.diffs.forEach(diff => {
+            const fileHeader = document.createElement('h3');
+            fileHeader.textContent = diff.new_path || diff.old_path;
+            const pre = document.createElement('pre');
+            let lines = diff.diff.split('\n');
+            lines = lines.filter(line => !line.startsWith('-') || line.startsWith('---'));
+            lines = lines.map(line => {
+              if (line.startsWith('+')) {
+                return line.replace('+', '');
+              } 
+              return line;
+            });
+            diff.diff = lines.join('\n');
+            pre.textContent = diff.diff;
+            pre.style = 'background:#f0f0f0; padding:10px; overflow:auto;';
+            container.appendChild(fileHeader);
+            container.appendChild(pre);
+          });
+        })
+        .catch(err => {
+          alert('Failed to load diff: ' + err.message);
+        });
+    });
+  </script>
+</script>
+<script>
+  document.getElementById('send-anthropic').addEventListener('click', function() {
+    const text = document.getElementById('diff-container').innerText;
+    if (!text) {
+      alert('Nothing to send');
+      return;
+    }
+    const respDiv = document.getElementById('anthropic-response');
+    // Show loading text
+    respDiv.textContent = 'Loading...';
+    const url = '/anthropic?message=' + encodeURIComponent(text);
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          respDiv.textContent = 'Error: ' + data.error;
+        } else {
+          // Extract only the text parts of the response content array
+          const parts = (data.content || []).filter(c => c.type === 'text').map(c => c.text);
+          // Clear previous content
+          respDiv.innerHTML = '';
+          // Create a styled <pre> element for the response
+          const pre = document.createElement('pre');
+          pre.textContent = parts.join('\n\n');
+          pre.style = 'background:#f0f0f0; padding:10px; overflow:auto;';
+          respDiv.appendChild(pre);
+        }
+      })
+      .catch(err => {
+        alert('Failed to call Anthropic: ' + err.message);
+      });
+  });
+</script>
 </body>
 </html>

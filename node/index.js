@@ -1,10 +1,15 @@
+require('dotenv').config();
 const express = require('express');
 const RSSParser = require('rss-parser');
-const fetch = require('node-fetch');
 
 const app = express();
 const parser = new RSSParser();
 const path = require('path');
+const Anthropic = require("@anthropic-ai/sdk");
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
 
 // Serve files from the "public" directory
 app.use(express.static(path.join(__dirname, 'public')));
@@ -77,8 +82,81 @@ app.get('/diff', async (req, res) => {
   }
 });
 
+
+
+async function sendAnthropicMessage(message) {
+  try {
+    const msg = await anthropic.messages.create({
+      model: "claude-3-7-sonnet-20250219",
+      max_tokens: 1000,
+      temperature: 1,
+      system: `Adblock Plus filters consist of two main categories: blocking and cosmetic (element-hiding) rules. Blocking rules use URL-matching syntax to prevent unwanted requests. You write a pattern—using * as a wildcard, ^ as a separator placeholder, and || to anchor at the start of a hostname—then optionally append $-options (e.g. script, image, third-party, domain=…) to limit by resource type or scope. Prepending @@ turns a blocking rule into an exception (whitelist). You can also use literal start/end anchors |…| for exact-URL matches. Comments begin with !.
+  Element-hiding (cosmetic) filters target DOM nodes via CSS or XPath. A simple rule looks like example.com##.advert to hide all <.advert> elements on example.com. Use #@# to exempt elements from hiding. For more complex relations you can inject snippet helpers:
+    •	override-property-read lets you stub or disable JavaScript globals (e.g. override-property-read Symbol.for noopFunc false).
+    •	hide-if-matches-xpath watches for nodes matching an XPath and hides them dynamically.
+    •	There are also snippet-type filters (#$#) for custom behaviors or small JS injections.
+  Together, these constructs let you precisely block network requests, surgically remove unwanted page elements, and neutralize anti-adblock or tracking scripts.`,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Explain the following Adblock Plus filter rule:
+  ${message}
+  ` 
+            }
+          ]
+        }
+      ]
+    });
+    const data = msg;
+    return data;
+//   const response = await fetch(url, {
+//     method: 'POST',
+//     headers: {
+//       'Authorization': `Bearer ${apiKey}`,
+//       'Anthropic-Version': '2023-06-01',
+//       'Content-Type': 'application/json',
+//     },
+//     body: JSON.stringify({
+//       model: 'claude-3-7-sonnet-20250219',
+//       max_tokens: 1024,
+//       messages: [
+//         { role: 'user', content: `
+// Adblock Plus filters consist of two main categories: blocking and cosmetic (element-hiding) rules. Blocking rules use URL-matching syntax to prevent unwanted requests. You write a pattern—using * as a wildcard, ^ as a separator placeholder, and || to anchor at the start of a hostname—then optionally append $-options (e.g. script, image, third-party, domain=…) to limit by resource type or scope. Prepending @@ turns a blocking rule into an exception (whitelist). You can also use literal start/end anchors |…| for exact-URL matches. Comments begin with !.
+// Element-hiding (cosmetic) filters target DOM nodes via CSS or XPath. A simple rule looks like example.com##.advert to hide all <.advert> elements on example.com. Use #@# to exempt elements from hiding. For more complex relations you can inject snippet helpers:
+// 	•	override-property-read lets you stub or disable JavaScript globals (e.g. override-property-read Symbol.for noopFunc false).
+// 	•	hide-if-matches-xpath watches for nodes matching an XPath and hides them dynamically.
+// 	•	There are also snippet-type filters (#$#) for custom behaviors or small JS injections.
+// Together, these constructs let you precisely block network requests, surgically remove unwanted page elements, and neutralize anti-adblock or tracking scripts.
+
+// Explain the following Adblock Plus filter rule:
+// ${message}
+// ` }]
+//     })
+//   });
+
+  } catch(err){
+    throw new Error(`Anthropic API error: ${err}`);
+  }
+
+
+}
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Endpoint: GET /anthropic - invoke the Claude API with a fixed "Hello, world" message
+app.get('/anthropic', async (req, res) => {
+  try {
+    const result = await sendAnthropicMessage(req.query.message);
+    res.json(result);
+  } catch (err) {
+    console.error('Anthropic API error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Start the server
@@ -86,3 +164,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`RSS-fetcher listening on http://localhost:${PORT}`);
 });
+
+

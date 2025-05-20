@@ -10,7 +10,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.51.0",
+    "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "node-fetch": "^3.3.2",
     "rss-parser": "^3.13.0"
   }
 }
